@@ -2,7 +2,11 @@
 
 The public source implements the same correction logic as the hardware-tested
 0.1.1 local build. Packaging changes only dependency paths and build tooling;
-it does not install or change the working system.
+the build itself does not install or change the working system.
+The separate `install.command` launcher builds without privileges, then runs
+`scripts/install.py` with administrator access to edit the selected EFI only.
+Run `python3 tests/installer.py` to exercise installation, idempotence and
+rollback on disposable EFI fixtures.
 
 Dependencies are pinned:
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Installer and documentation
+
+- Add a double-click installer that prompts for the OpenCore config path, builds
+  locally, backs up affected files, merges the firmware match and config entry,
+  and restores originals if installation or validation fails.
+- Simplify the README around compatibility, installation and recovery.
+- No companion code or version changes.
+
 ## Documentation update — firmware-loader match
 
 - Correct the tested prerequisite: RealtekBluetoothFirmware 1.0.2 used a custom
