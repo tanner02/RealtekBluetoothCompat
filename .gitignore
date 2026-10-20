@@ -1,0 +1,10 @@
+# Locally generated from the user's own Apple executable; never redistribute.
+/generated/
+/build/
+/Dependencies/
+*.kext/
+*.o
+*.zip
+*.log
+.DS_Store
+__pycache__/
