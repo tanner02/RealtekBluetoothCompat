@@ -33,6 +33,17 @@ This is not a SIP change. If the write is denied, do not disable additional
 protections just to force it; use your existing OpenCore recovery process.
 The flag was cleared during the successful hardware test.
 
+## Bluetooth is On but the keyboard cannot connect
+
+First verify the **firmware-loader match**, not just this companion's observer.
+The tested stock RealtekBluetoothFirmware 1.0.2 plist lacked USB `0bda:0852`.
+With that stock plist, Bluetooth could appear enabled but MX Keys S connections
+failed. Adding the loader personality restored working connections.
+
+See [the exact match and merge instructions](FIRMWARE_MATCH.md). A loader service
+for the device and a successful firmware upload are required. Do not add the
+firmware-loader personality to RealtekBluetoothCompat's own plist.
+
 ## Connected keyboard does not immediately reconnect
 
 The tested MX Keys S sometimes needed a keypress to wake after a Bluetooth

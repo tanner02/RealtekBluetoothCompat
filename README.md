@@ -21,7 +21,7 @@ firmware variants are not supported. The Wi-Fi chip name alone is insufficient.
 | Architecture | x86_64, AMD Hackintosh |
 | Lilu | 1.7.2 |
 | BlueToolFixup | 2.7.2 |
-| RealtekBluetoothFirmware | 1.0.2 |
+| RealtekBluetoothFirmware | 1.0.2 **with the added `0bda:0852` USB personality** |
 | Peripheral | Logitech MX Keys S |
 | Result | Boot, Bluetooth on, passkey pairing, normal typing and reconnection |
 
@@ -29,6 +29,23 @@ Sleep/wake, audio devices, multiple controllers, and other computers remain
 untested. Full-SIP compatibility has **not** been established: debugging
 restrictions were enabled, but the test machine's other SIP settings were
 customized. This project does not change SIP settings.
+
+## Required firmware-loader device match
+
+The successful test used a **customized RealtekBluetoothFirmware 1.0.2 plist**.
+The supplied stock 1.0.2 plist did not match USB `0bda:0852`; the working plist
+added exactly one personality, `RealtekBluetoothFirmware_0bda_0852`.
+
+With the stock loader plist and this companion, Bluetooth appeared enabled but
+the keyboard would not connect. Restoring the loader's USB match restored
+working pairing/connection. **Seeing Bluetooth “On” is not sufficient.** The
+companion's USB observer does not make the separate firmware uploader match.
+
+Before installation, check your firmware loader's `IOKitPersonalities`. If it
+does not already match `0bda:0852`, follow the [firmware-loader match guide](docs/FIRMWARE_MATCH.md)
+and merge the [minimal plist fragment](examples/RealtekBluetoothFirmware-0bda-0852.plist).
+The fragment belongs in **RealtekBluetoothFirmware.kext**, not this companion's
+`Info.plist`. Do not replace an entire kext plist with the fragment.
 
 ## What it fixes
 
@@ -80,7 +97,8 @@ kernel extension can prevent booting even when its host tests pass.
 
 1. Confirm your Bluetooth USB ID is `0bda:0852` in System Information → USB.
 2. Confirm the firmware loader, Lilu and BlueToolFixup already work in your
-   OpenCore configuration.
+   OpenCore configuration. **Verify the firmware loader has the required
+   `0bda:0852` match above; stock 1.0.2 did not include it in the supplied plist.**
 3. Copy the built kext into your EFI's `OC/Kexts` directory.
 4. Add it to `Kernel -> Add` after Lilu and BlueToolFixup. Use `Arch = x86_64`,
    `MinKernel = 24.6.0`, `MaxKernel = 24.6.99`,

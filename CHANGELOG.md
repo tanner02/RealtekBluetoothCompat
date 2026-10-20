@@ -1,5 +1,12 @@
 # Changelog
 
+## Documentation update — firmware-loader match
+
+- Correct the tested prerequisite: RealtekBluetoothFirmware 1.0.2 used a custom
+  `0bda:0852` personality absent from the supplied stock plist.
+- Include a minimal merge fragment and explain why Bluetooth On alone does not
+  establish firmware-loader compatibility. No companion code/version changes.
+
 ## 0.1.1
 
 - Register with Lilu through an early IOResources bootstrap.
