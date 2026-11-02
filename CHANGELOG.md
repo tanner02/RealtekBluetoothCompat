@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 — startup page consistency
+
+- Move the injected payload from early-read Mach-O header padding to verified,
+  file-backed RX padding after the last __TEXT section.
+- Remove USB-observer timing from per-page validation: the exact path, native
+  CodeDirectory and original full-page guards apply from the first fault.
+- Accept only exact previous/new cached patches when generating local fixtures.
+- Targets recurrent cold-start crashes at the previous payload offset 0x2440.
+  Verified loaded and Bluetooth working after reboot on the test machine.
+
 ## Installer and documentation
 
 - Add a double-click installer that prompts for the OpenCore config path, builds
