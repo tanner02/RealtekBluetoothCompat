@@ -78,6 +78,12 @@ Ensure the loader has the [required firmware match](docs/FIRMWARE_MATCH.md).
 Validate your config before rebooting. Do not bypass the binary guards to force
 an unsupported macOS build to work.
 
+## Startup fix in 0.1.2
+
+This version addresses recurring startup crashes in 0.1.1 by moving the injected
+code out of the early-read header page and removing USB-enumeration timing from
+page patching. Rebuild and reinstall to upgrade. Verified loaded and working after reboot on the test machine.
+
 ## Troubleshooting and removal
 
 Check that the kext loaded with `kmutil showloaded | grep RealtekBluetoothCompat`.
