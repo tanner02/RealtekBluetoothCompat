@@ -19,7 +19,7 @@ xcrun clang++ -arch x86_64 -std=c++14 -fsanitize=address,undefined -fno-omit-fra
 ./build/host-test-sanitized
 for src in RealtekBluetoothCompat.cpp "$lilu/Library/plugin_start.cpp"; do
  obj="build/$(basename "$src" .cpp).o"
- xcrun clang++ -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -I"$kh/PrivateHeaders" -I"$lilu" -mkernel -fapple-kext -fno-builtin -fno-common -fno-exceptions -fno-rtti -std=gnu++14 -DKERNEL -DKERNEL_PRIVATE -DAPPLE -DNeXT -DPRODUCT_NAME=RealtekBluetoothCompat -DMODULE_VERSION=0.1.1 -DLILU_CUSTOM_IOKIT_INIT -Wno-deprecated-declarations -Wno-inconsistent-missing-override -Os -c "$src" -o "$obj"
+ xcrun clang++ -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -I"$kh/PrivateHeaders" -I"$lilu" -mkernel -fapple-kext -fno-builtin -fno-common -fno-exceptions -fno-rtti -std=gnu++14 -DKERNEL -DKERNEL_PRIVATE -DAPPLE -DNeXT -DPRODUCT_NAME=RealtekBluetoothCompat -DMODULE_VERSION=0.1.2 -DLILU_CUSTOM_IOKIT_INIT -Wno-deprecated-declarations -Wno-inconsistent-missing-override -Os -c "$src" -o "$obj"
 done
 xcrun clang -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -mkernel -DKERNEL -DKERNEL_PRIVATE -c kmod_info.c -o build/kmod_info.o
 xcrun clang++ -arch x86_64 -isysroot "$sdk" -nostdlib -fapple-kext -Wl,-kext -L"$kh/Library/x86_64" build/RealtekBluetoothCompat.o build/plugin_start.o build/kmod_info.o -lkmod -o build/RealtekBluetoothCompat

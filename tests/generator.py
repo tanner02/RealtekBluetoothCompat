@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check local cache normalization and rejection of unknown code/signature data."""
-import pathlib,struct,subprocess,sys,tempfile
+import pathlib,struct,subprocess,sys,tempfile,json
 root=pathlib.Path(__file__).resolve().parent.parent
 binary=bytearray(pathlib.Path('/usr/sbin/bluetoothd').read_bytes())
 for i in range(struct.unpack_from('>I',binary,4)[0]):
@@ -17,13 +17,22 @@ with tempfile.TemporaryDirectory() as directory:
  run(binary,True)
  before=(root/'generated/Patches.hpp').read_bytes()
  clean=bytearray(binary)
- for address,original in ((0x2440,bytes(246)),(0x14493d,b'\x0c'),(0x146814,bytes.fromhex('554889e5415741564154534881ec20010000')),(0x1e4f39,b'\x74')):
+ for address,original in ((0x2440,bytes(246)),(0x9da400,bytes(246)),(0x14493d,b'\x0c'),(0x146814,bytes.fromhex('554889e5415741564154534881ec20010000')),(0x1e4f39,b'\x74')):
   clean[off+address:off+address+len(original)]=original
  run(clean,True)
+ assert (root/'generated/Patches.hpp').read_bytes()==before
+ # The new cache layout must also regenerate identical original signed pages.
+ manifest=json.loads((root/'generated/manifest.json').read_text())
+ patched=bytearray(clean)
+ for spec in manifest['patches']:
+  replacement=bytearray.fromhex(spec['replacement'])
+  if spec['name']=='payload':replacement[-6:]=bytes([1,2,3,4,5,0xc6])
+  at=off+spec['offset'];patched[at:at+len(replacement)]=replacement
+ run(patched,True)
  assert (root/'generated/Patches.hpp').read_bytes()==before
  # Tampering outside the known replacement range must fail a signed-page check.
  changed=bytearray(clean);changed[off+0x146900]^=1;run(changed,False)
  # Unknown code at a replacement site must not be normalized.
- changed=bytearray(clean);changed[off+0x2440]=0xcc;run(changed,False)
+ changed=bytearray(clean);changed[off+0x9da400]=0xcc;run(changed,False)
  assert (root/'generated/Patches.hpp').read_bytes()==before
 print('PASS: known cache/original pages generate identical data; unknown patch/page changes rejected.')

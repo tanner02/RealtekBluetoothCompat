@@ -23,7 +23,11 @@ static_assert(PAGE_SIZE == 4096, "This payload is x86_64 4K-page specific");
 static void validatePage(vnode_t vnode, memory_object_t pager,
     memory_object_offset_t offset, const void *data, int *validated, int *tainted, int *nx) {
     FunctionCast(validatePage, originalValidate)(vnode, pager, offset, data, validated, tainted, nx);
-    if (!__atomic_load_n(&targetActive, __ATOMIC_ACQUIRE) || !getCDHash ||
+    // Page validation can precede USB enumeration. Never gate individual code
+    // pages on an observer that can change between the payload and dispatcher.
+    // Installation enforces the device ID; the path/hash/full-page guards here
+    // bind every patch to one supported executable from the first fault onward.
+    if (!getCDHash ||
         !data || !validated || !*validated || !tainted || *tainted || !nx || *nx)
         return;
     // Most pages are discarded before vnode/path/hash calls.
@@ -96,7 +100,7 @@ bool RealtekBluetoothCompatObserver::start(IOService *provider) {
     setProperty("SupportedBluetoothdCDHash", "be939612ec41703dbe1c6f8d004599ebf0e335c0");
     __atomic_store_n(&targetActive, true, __ATOMIC_RELEASE);
     registerService();
-    SYSLOG("rtkcompat", "matched Realtek 0bda:0852; memory-only compatibility enabled");
+    SYSLOG("rtkcompat", "matched Realtek 0bda:0852; controller observer active");
     return true;
 }
 void RealtekBluetoothCompatObserver::stop(IOService *provider) {
