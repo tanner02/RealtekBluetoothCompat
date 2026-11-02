@@ -44,3 +44,18 @@ and requires the exact native CodeDirectory hash plus matching SHA-256 slots
 for every original patch/header page. Unknown patches in those pages are
 rejected. `generate.py --binary /path/to/local/matching/bluetoothd` can be used
 for a separate clean local copy. The source file is never written.
+
+## 0.1.2 startup correction
+
+Earlier builds gated independent code-page writes on USB enumeration. An early
+header page could be validated while the observer was inactive, followed by a
+later patched dispatcher page redirecting into its original zero padding.
+Recurrent crashes at 0x2440 are consistent with this failure mode.
+
+The payload now occupies 0x9da400 in signed file-backed RX __TEXT tail padding,
+after every section (last section ends at 0x9da370). Generation verifies these
+segment/section boundaries, original zero bytes and the original signed page.
+Validation no longer gates individual pages on USB enumeration; the installer
+checks the device, and the runtime path/hash/full-page guards remain mandatory.
+The observer is diagnostic. This avoids split patch decisions as it starts or
+stops. The 0.1.2 kext was subsequently verified loaded with Bluetooth working after reboot on the test machine.
