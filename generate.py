@@ -7,7 +7,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--binary',default='/usr/sbin/bluetoothd',help='Matching local Apple binary (never uploaded)')
 args=parser.parse_args()
 binary=bytearray(pathlib.Path(args.binary).read_bytes())
-expected_cdhash='be939612ec41703dbe1c6f8d004599ebf0e335c0'
+
 observed_sha256=hashlib.sha256(binary).hexdigest()
 assert binary[:4]==bytes.fromhex('cafebabe')
 for i in range(struct.unpack_from('>I',binary,4)[0]):
@@ -16,10 +16,21 @@ for i in range(struct.unpack_from('>I',binary,4)[0]):
 else:raise AssertionError('No x86_64 slice')
 p=binary[off:off+size]
 header_end=32+struct.unpack_from('<I',p,20)[0]
-assert header_end==0x2440
-# Use file-backed RX tail padding, not the early-read Mach header page.
-# The exact CodeDirectory and original page hashes below bind this layout.
-cave=0x9da400;trampoline=cave+0xd0;random_address=cave+0xf0;entry=0x146814
+# Layout selection is only a hint; exact CodeDirectory and signed-page guards
+# below must still pass before any generated patch can be emitted.
+if header_end == 0x2440:
+ profile='sequoia'; kernel=24
+ expected_cdhash='be939612ec41703dbe1c6f8d004599ebf0e335c0'
+ cave=0x9da400; entry=0x146814; optional=0x14493d; phy=0x1e4f39
+ text_size=0x9db000; section_end=0x9da370; text_start=0x2550
+elif header_end == 0x26c8:
+ profile='tahoe'; kernel=25
+ expected_cdhash='ac367bd0eb64f10ec8673143e52372cf21051491'
+ cave=0xaa2c00; entry=0x173218; optional=0x17108e; phy=0x216551
+ text_size=0xaa3000; section_end=0xaa2b98; text_start=0x27f0
+else:
+ raise AssertionError('Unsupported bluetoothd layout')
+trampoline=cave+0xd0; random_address=cave+0xf0
 original=bytes.fromhex('554889e5415741564154534881ec20010000')
 hook=(root/'dispatcher-hook-template.bin').read_bytes()
 assert len(hook)==200
@@ -41,28 +52,27 @@ def make_payload(cave):
  assert len(payload)==246
  return bytes(payload)
 payload=make_payload(cave)
-patches=[('payload',cave,bytes(payload)),('optional-page2',0x14493d,b'\xff'),('dispatcher',entry,relative(b'\xe9',entry,cave)+b'\x90'*13),('baseline-phy',0x1e4f39,b'\xeb')]
+patches=[('payload',cave,bytes(payload)),('optional-page2',optional,b'\xff'),('dispatcher',entry,relative(b'\xe9',entry,cave)+b'\x90'*13),('baseline-phy',phy,b'\xeb')]
 # An active code-validation plugin can leave its exact patches in the UBC cache.
 # Normalize only our four known ranges in this temporary buffer, then require the
 # original signed-page hashes bound to the exact CodeDirectory. Never write
 # to the executable or accept unknown code/signature data.
 original_ranges=[bytes(len(payload)),b'\x0c',original,b'\x74']
 normalized=0
-# Accept the exact previous 0.1.1 cache image to permit upgrading while it runs.
-# All restored pages must still pass Apple's original signed-page hashes.
 legacy_cave=0x2440
-legacy_payload=make_payload(legacy_cave)
-legacy_current=bytes(binary[off+legacy_cave:off+legacy_cave+246])
-if legacy_current != bytes(246):
- assert legacy_current[:-6]==legacy_payload[:-6] and legacy_current[-1]&0xc0==0xc0, 'Unknown legacy header payload'
- binary[off+legacy_cave:off+legacy_cave+246]=bytes(246);normalized+=1
+if profile=='sequoia':
+ legacy_payload=make_payload(legacy_cave)
+ legacy_current=bytes(binary[off+legacy_cave:off+legacy_cave+246])
+ if legacy_current!=bytes(246):
+  assert legacy_current[:-6]==legacy_payload[:-6] and legacy_current[-1]&0xc0==0xc0, 'Unknown legacy header payload'
+  binary[off+legacy_cave:off+legacy_cave+246]=bytes(246);normalized+=1
 for (name,addr,replacement),before in zip(patches,original_ranges):
  start=off+addr;current=bytes(binary[start:start+len(before)])
  if current==before:continue
  matches=current==replacement
  if name=='payload':
   matches=current[:-6]==replacement[:-6] and current[-1]&0xc0==0xc0
- if name=='dispatcher':
+ if name=='dispatcher' and profile=='sequoia':
   matches=matches or current==relative(b'\xe9',entry,legacy_cave)+b'\x90'*13
  assert matches,'Unexpected bytes at %s; use a clean matching local binary'%name
  binary[start:start+len(before)]=before;normalized+=1
@@ -107,13 +117,13 @@ for _ in range(struct.unpack_from('<I',p,16)[0]):
  if cmd==0x19 and p[pos+8:pos+24].rstrip(b'\0')==b'__TEXT':
   vm,vs,fo,fs=struct.unpack_from('<QQQQ',p,pos+24)
   maxprot,initprot,nsects=struct.unpack_from('<III',p,pos+56)
-  assert vm==0x100000000 and fo==0 and fs==0x9db000 and initprot==5
+  assert vm==0x100000000 and fo==0 and fs==text_size and initprot==5
   ends=[]
   for k in range(nsects):
    q=pos+72+80*k;address,length_,offset_=struct.unpack_from('<QQI',p,q+32)
    assert address-vm==offset_
    ends.append(offset_+length_)
-  assert max(ends)==0x9da370 and max(ends)<=cave and cave+len(payload)<=fs
+  assert max(ends)==section_end and max(ends)<=cave and cave+len(payload)<=fs
   found=True
  pos+=length
 assert found and p[cave:cave+len(payload)]==bytes(len(payload))
@@ -121,6 +131,7 @@ assert p[entry:entry+18]==original
 if normalized:print('Normalized %d known cache patches in a temporary buffer; exact CodeDirectory and signed pages verified.'%normalized)
 cdhash=bytes.fromhex(expected_cdhash)
 lines=['// Generated only from the exact supported local binary. Do not edit.','#pragma once']
+lines.extend(['static const int supportedKernel = %d;'%kernel, 'static const char supportedCDHashString[] = \"%s\";'%expected_cdhash, 'static const size_t supportedTextSize = 0x%x;'%text_size, 'static const size_t supportedCave = 0x%x;'%cave, 'static const size_t supportedEntry = 0x%x;'%entry])
 def arr(name,value,mutable=False):
  lines.append(('static unsigned char ' if mutable else 'static const unsigned char ')+name+'[] = {')
  lines.extend('    '+','.join('0x%02x'%b for b in value[i:i+24])+',' for i in range(0,len(value),24))
@@ -136,6 +147,6 @@ for i,(name,addr,replacement) in enumerate(patches):
 lines.append('};')
 (root/'generated/Patches.hpp').write_text('\n'.join(lines)+'\n')
 (root/'generated/payload.bin').write_bytes(payload)
-manifest={'observed_file_sha256':observed_sha256,'cdhash':cdhash.hex(),'slice_offset':off,'load_commands_end':header_end,'text_start':0x2550,'payload_location':'file-backed RX __TEXT tail padding','cave':cave,'trampoline':trampoline,'random_address':random_address,'entry':entry,'patches':[{'name':n,'offset':a,'original':p[a:a+len(r)].hex(),'replacement':r.hex()} for n,a,r in patches]}
+manifest={'profile':profile,'kernel':kernel,'text_size':text_size,'observed_file_sha256':observed_sha256,'cdhash':cdhash.hex(),'slice_offset':off,'load_commands_end':header_end,'text_start':text_start,'payload_location':'file-backed RX __TEXT tail padding','cave':cave,'trampoline':trampoline,'random_address':random_address,'entry':entry,'patches':[{'name':n,'offset':a,'original':p[a:a+len(r)].hex(),'replacement':r.hex()} for n,a,r in patches]}
 (root/'generated/manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 print('Generated four build-pinned page patches locally; generated/ must not be committed.')

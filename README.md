@@ -5,8 +5,7 @@ Realtek USB **`0bda:0852`** (`rtl8852cu` firmware), found on some RTL8852CE card
 
 ## Compatibility
 
-- **x86_64 macOS 15.8.1, build 24H32 / Darwin 24.6.x.** The build checks the exact
-  supported `bluetoothd` binary; other builds are unsupported.
+- **x86_64 macOS 15.8.1, build 24H32 / Darwin 24.6.x**, or **macOS 26.7.2, build 25G332 / Darwin 25.6.x**. The generator selects the matching layout and checks the exact native `bluetoothd` CodeDirectory and original signed pages. Other binaries are rejected.
 - **Bluetooth USB ID `0bda:0852`.** Check System Information → USB. The RTL8852CE
   Wi-Fi chip name alone does not establish compatibility.
 - Existing OpenCore setup with **Lilu 1.7.2**, **BlueToolFixup 2.7.2** and
@@ -71,8 +70,8 @@ BlueToolFixup and RealtekBluetoothFirmware in `Kernel → Add`:
 | Enabled | `true` |
 | ExecutablePath | `Contents/MacOS/RealtekBluetoothCompat` |
 | PlistPath | `Contents/Info.plist` |
-| MinKernel | `24.6.0` |
-| MaxKernel | `24.6.99` |
+| MinKernel | `24.6.0` (Sequoia) or `25.6.0` (Tahoe) |
+| MaxKernel | `24.6.99` (Sequoia) or `25.6.99` (Tahoe) |
 
 Ensure the loader has the [required firmware match](docs/FIRMWARE_MATCH.md).
 Validate your config before rebooting. Do not bypass the binary guards to force
@@ -105,3 +104,19 @@ Thanks to [Lilu](https://github.com/acidanthera/Lilu),
 [MacKernelSDK](https://github.com/acidanthera/MacKernelSDK),
 [RealtekBluetoothFirmware](https://github.com/thegwchr/RealtekBluetoothFirmware)
 and [IntelBTPatcher](https://github.com/OpenIntelWireless/IntelBluetoothFirmware).
+
+## Tahoe port (0.2.0)
+
+The Tahoe profile was built from the local 25G332 binary and tested on a Ryzen
+5700X3D with the Realtek 0bda:0852 controller. The tester confirmed Bluetooth
+working after reboot. Sleep/wake, audio profiles and other Tahoe builds remain
+unverified. The Sequoia profile retains its existing addresses and legacy-cache
+normalization; it was not hardware-retested during this port.
+
+Native page-guard/ABI/trampoline tests, UBSan and the kmod pointer audit passed.
+On the test Hackintosh, ASan aborts in libpthread initialization before main.
+Default builds still require ASan; on an affected host explicitly run
+`RTKCOMPAT_SKIP_ASAN=1 ./build.sh` (or set this variable for `install.command`).
+This prints a warning and does not claim ASan coverage.
+
+See [port details](docs/TAHOE.md). Generated Apple pages and compiled kexts stay local.

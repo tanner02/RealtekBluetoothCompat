@@ -15,11 +15,19 @@ xcrun python3 generate.py
 xcrun python3 tests/generator.py
 xcrun clang++ -arch x86_64 -std=c++14 -Wall -Wextra -Werror tests/host.cpp -o build/host-test
 ./build/host-test
-xcrun clang++ -arch x86_64 -std=c++14 -fsanitize=address,undefined -fno-omit-frame-pointer tests/host.cpp -o build/host-test-sanitized
-./build/host-test-sanitized
+# UndefinedBehaviorSanitizer remains mandatory. ASan can be explicitly skipped
+# on affected Hackintosh hosts whose runtime aborts in libpthread before main.
+xcrun clang++ -arch x86_64 -std=c++14 -fsanitize=undefined -fno-omit-frame-pointer tests/host.cpp -o build/host-test-ubsan
+./build/host-test-ubsan
+if [ "${RTKCOMPAT_SKIP_ASAN:-0}" != 1 ]; then
+ xcrun clang++ -arch x86_64 -std=c++14 -fsanitize=address -fno-omit-frame-pointer tests/host.cpp -o build/host-test-asan
+ ./build/host-test-asan
+else
+ echo 'WARNING: ASan explicitly skipped; this validation remains incomplete.'
+fi
 for src in RealtekBluetoothCompat.cpp "$lilu/Library/plugin_start.cpp"; do
  obj="build/$(basename "$src" .cpp).o"
- xcrun clang++ -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -I"$kh/PrivateHeaders" -I"$lilu" -mkernel -fapple-kext -fno-builtin -fno-common -fno-exceptions -fno-rtti -std=gnu++14 -DKERNEL -DKERNEL_PRIVATE -DAPPLE -DNeXT -DPRODUCT_NAME=RealtekBluetoothCompat -DMODULE_VERSION=0.1.2 -DLILU_CUSTOM_IOKIT_INIT -Wno-deprecated-declarations -Wno-inconsistent-missing-override -Os -c "$src" -o "$obj"
+ xcrun clang++ -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -I"$kh/PrivateHeaders" -I"$lilu" -mkernel -fapple-kext -fno-builtin -fno-common -fno-exceptions -fno-rtti -std=gnu++14 -DKERNEL -DKERNEL_PRIVATE -DAPPLE -DNeXT -DPRODUCT_NAME=RealtekBluetoothCompat -DMODULE_VERSION=0.2.0 -DLILU_CUSTOM_IOKIT_INIT -Wno-deprecated-declarations -Wno-inconsistent-missing-override -Os -c "$src" -o "$obj"
 done
 xcrun clang -arch x86_64 -isysroot "$sdk" -I"$kh/Headers" -mkernel -DKERNEL -DKERNEL_PRIVATE -c kmod_info.c -o build/kmod_info.o
 xcrun clang++ -arch x86_64 -isysroot "$sdk" -nostdlib -fapple-kext -Wl,-kext -L"$kh/Library/x86_64" build/RealtekBluetoothCompat.o build/plugin_start.o build/kmod_info.o -lkmod -o build/RealtekBluetoothCompat

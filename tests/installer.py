@@ -58,6 +58,14 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(fw['Other'], {'idVendor': 1})
         self.assertEqual(len(list(self.oc.glob('RealtekBluetoothCompat-backup-*'))), 2)
 
+    def test_tahoe_kernel_range(self):
+        with patch.object(installer.platform, 'release', return_value='25.6.0'):
+            installer.install(self.config)
+        entries = installer.read_plist(self.config)['Kernel']['Add']
+        entry = next(e for e in entries if e['BundlePath'] == installer.NAME)
+        self.assertEqual(entry['MinKernel'], '25.6.0')
+        self.assertEqual(entry['MaxKernel'], '25.6.99')
+
     def test_validation_failure_rolls_back_existing_kext(self):
         self.target.mkdir()
         (self.target / 'old').write_bytes(b'old-kext')

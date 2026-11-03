@@ -99,7 +99,7 @@ def plan(config):
     entries.insert(position, {
         'Arch': 'x86_64', 'BundlePath': NAME, 'Comment': 'Realtek Bluetooth compatibility',
         'Enabled': True, 'ExecutablePath': 'Contents/MacOS/RealtekBluetoothCompat',
-        'MaxKernel': '24.6.99', 'MinKernel': '24.6.0', 'PlistPath': 'Contents/Info.plist',
+        'MaxKernel': platform.release().split('.')[0]+'.6.99', 'MinKernel': platform.release().split('.')[0]+'.6.0', 'PlistPath': 'Contents/Info.plist',
     })
     target = kexts / NAME
     if target.is_symlink() or (target.exists() and not target.is_dir()):
@@ -111,8 +111,8 @@ def check_machine():
     if platform.system() != 'Darwin' or platform.machine() != 'x86_64':
         raise ValueError('Requires x86_64 macOS.')
     build = subprocess.check_output(['/usr/bin/sw_vers', '-buildVersion'], text=True).strip()
-    if build != '24H32' or not platform.release().startswith('24.6.'):
-        raise ValueError('Supported macOS build: 24H32 / Darwin 24.6.x only.')
+    if (build, '.'.join(platform.release().split('.')[:2])) not in {('24H32','24.6'),('25G332','25.6')}:
+        raise ValueError('Supported builds: 24H32 / Darwin 24.6.x or 25G332 / Darwin 25.6.x only.')
     usb = plistlib.loads(subprocess.check_output(['/usr/sbin/ioreg', '-a', '-r', '-c', 'IOUSBHostDevice']))
 
     def matches(node):

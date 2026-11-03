@@ -17,7 +17,9 @@ with tempfile.TemporaryDirectory() as directory:
  run(binary,True)
  before=(root/'generated/Patches.hpp').read_bytes()
  clean=bytearray(binary)
- for address,original in ((0x2440,bytes(246)),(0x9da400,bytes(246)),(0x14493d,b'\x0c'),(0x146814,bytes.fromhex('554889e5415741564154534881ec20010000')),(0x1e4f39,b'\x74')):
+ manifest=json.loads((root/'generated/manifest.json').read_text())
+ for spec in manifest['patches']:
+  address=spec['offset'];original=bytes.fromhex(spec['original'])
   clean[off+address:off+address+len(original)]=original
  run(clean,True)
  assert (root/'generated/Patches.hpp').read_bytes()==before
@@ -31,8 +33,8 @@ with tempfile.TemporaryDirectory() as directory:
  run(patched,True)
  assert (root/'generated/Patches.hpp').read_bytes()==before
  # Tampering outside the known replacement range must fail a signed-page check.
- changed=bytearray(clean);changed[off+0x146900]^=1;run(changed,False)
+ changed=bytearray(clean);changed[off+(manifest['entry']&~4095)+0x300]^=1;run(changed,False)
  # Unknown code at a replacement site must not be normalized.
- changed=bytearray(clean);changed[off+0x9da400]=0xcc;run(changed,False)
+ changed=bytearray(clean);changed[off+manifest['cave']]=0xcc;run(changed,False)
  assert (root/'generated/Patches.hpp').read_bytes()==before
 print('PASS: known cache/original pages generate identical data; unknown patch/page changes rejected.')

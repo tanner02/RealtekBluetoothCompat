@@ -1,4 +1,4 @@
-// Local Lilu companion for Realtek 0bda:0852, macOS 15.8.1 (24H32), x86_64.
+// Build-pinned Lilu companion for Realtek 0bda:0852, x86_64.
 // Code-validation routing follows acidanthera BlueToolFixup (GPL-2.0; Dhinak G / acidanthera).
 // No USB transport hooks; compatibility instructions run only in bluetoothd.
 #include <Headers/kern_api.hpp>
@@ -97,7 +97,7 @@ bool RealtekBluetoothCompatObserver::start(IOService *provider) {
     if (!vendor || !product || vendor->unsigned32BitValue() != 0x0bda ||
         product->unsigned32BitValue() != 0x0852) return false;
     setProperty("VersionInfo", kextVersion);
-    setProperty("SupportedBluetoothdCDHash", "be939612ec41703dbe1c6f8d004599ebf0e335c0");
+    setProperty("SupportedBluetoothdCDHash", supportedCDHashString);
     __atomic_store_n(&targetActive, true, __ATOMIC_RELEASE);
     registerService();
     SYSLOG("rtkcompat", "matched Realtek 0bda:0852; controller observer active");
@@ -137,5 +137,5 @@ static const char *debugArgs[] = {"-rtkcompatdbg"};
 PluginConfiguration ADDPR(config) {
     xStringify(PRODUCT_NAME), parseModuleVersion(xStringify(MODULE_VERSION)),
     LiluAPI::AllowNormal, offArgs, arrsize(offArgs), debugArgs, arrsize(debugArgs),
-    nullptr, 0, KernelVersion::Sequoia, KernelVersion::Sequoia, pluginStart
+    nullptr, 0, static_cast<KernelVersion>(supportedKernel), static_cast<KernelVersion>(supportedKernel), pluginStart
 };
