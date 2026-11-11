@@ -37,6 +37,19 @@ int main() {
         invalid.pageOffset=SIZE_MAX;
         assert(applyPage(invalid,invalid.fileOffset,page,4096)==PatchResult::Mismatch);
     }
+    if (!usesDispatcherPatch) {
+        assert(sizeof(patchSpecs)/sizeof(patchSpecs[0]) == 1);
+        auto &spec = patchSpecs[0];
+        assert(!strcmp(spec.name, "baseline-ready") && spec.size == 1);
+        assert(spec.originalPage[spec.pageOffset] == 0x74 && spec.replacement[0] == 0xeb);
+        memcpy(page, spec.originalPage, sizeof(page));
+        assert(applyPage(spec, spec.fileOffset, page, sizeof(page)) == PatchResult::Applied);
+        for (size_t i = 0; i < sizeof(page); ++i)
+            assert(i == spec.pageOffset || page[i] == spec.originalPage[i]);
+        assert(page[0x551] == 0x74);
+        puts("PASS: full-page guards, idempotence, malformed boundaries; one Ready byte changed, original PHY branch preserved.");
+        return 0;
+    }
     auto image=static_cast<unsigned char *>(mmap(nullptr,supportedTextSize,7,MAP_PRIVATE|MAP_ANON,-1,0));
     assert(image!=MAP_FAILED);
     const unsigned char random[]={1,2,3,4,5,0xc6};

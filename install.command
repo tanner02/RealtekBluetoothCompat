@@ -18,8 +18,9 @@ xcode-select -p >/dev/null 2>&1 || {
 }
 python=$(xcrun --find python3)
 config=$("$python" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=True))' "$config")
-"$python" scripts/install.py --check "$config"
+device=$("$python" scripts/install.py --check --print-device "$config")
+echo "Controller, macOS build and EFI prerequisites passed ($device)."
 ./scripts/setup-deps.sh
-./build.sh
+./build.sh --device "$device"
 echo 'Build passed. Administrator access is used only for the EFI installation.'
-sudo -- "$python" scripts/install.py "$config"
+sudo -- "$python" scripts/install.py --device "$device" "$config"
