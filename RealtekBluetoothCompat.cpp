@@ -1,4 +1,4 @@
-// Build-pinned Lilu companion for Realtek 0bda:0852, x86_64.
+// Build-pinned Lilu companion for the selected Realtek USB controller, x86_64.
 // Code-validation routing follows acidanthera BlueToolFixup (GPL-2.0; Dhinak G / acidanthera).
 // No USB transport hooks; compatibility instructions run only in bluetoothd.
 #include <Headers/kern_api.hpp>
@@ -94,13 +94,13 @@ bool RealtekBluetoothCompatObserver::start(IOService *provider) {
     if (!IOService::start(provider)) return false;
     auto vendor = OSDynamicCast(OSNumber, provider->getProperty("idVendor"));
     auto product = OSDynamicCast(OSNumber, provider->getProperty("idProduct"));
-    if (!vendor || !product || vendor->unsigned32BitValue() != 0x0bda ||
-        product->unsigned32BitValue() != 0x0852) return false;
+    if (!vendor || !product || vendor->unsigned32BitValue() != supportedVendorID ||
+        product->unsigned32BitValue() != supportedProductID) return false;
     setProperty("VersionInfo", kextVersion);
     setProperty("SupportedBluetoothdCDHash", supportedCDHashString);
     __atomic_store_n(&targetActive, true, __ATOMIC_RELEASE);
     registerService();
-    SYSLOG("rtkcompat", "matched Realtek 0bda:0852; controller observer active");
+    SYSLOG("rtkcompat", "matched Realtek %04x:%04x; controller observer active", supportedVendorID, supportedProductID);
     return true;
 }
 void RealtekBluetoothCompatObserver::stop(IOService *provider) {
@@ -123,9 +123,11 @@ static void patcherReady(void *, KernelPatcher &patcher) {
     SYSLOG("rtkcompat", "code-validation route installed; exact-build guard active");
 }
 static void pluginStart() {
-    // Stable within this boot; static-random address, not a resolvable private address.
-    read_random(replacement0 + sizeof(replacement0) - 6, 6);
-    replacement0[sizeof(replacement0) - 1] |= 0xc0;
+    if (usesDispatcherPatch) {
+        // Stable within this boot; static-random address, not a resolvable private address.
+        read_random(replacement0 + sizeof(replacement0) - 6, 6);
+        replacement0[sizeof(replacement0) - 1] |= 0xc0;
+    }
     auto error = lilu.onPatcherLoad(patcherReady);
     if (error != LiluAPI::Error::NoError) {
         ADDPR(startSuccess) = false;
