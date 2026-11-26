@@ -1,21 +1,25 @@
 # RealtekBluetoothCompat
 
 Lilu companion kext that fixes Bluetooth initialization and BLE pairing for
-Realtek USB **`0bda:0852`** (`rtl8852cu` firmware), found on some RTL8852CE cards.
+Realtek USB **`0bda:0852`** (`rtl8852cu` firmware, some RTL8852CE cards) and
+**`0cb8:c559`** (`rtl8852bu` firmware, RTL8852B).
 
 ## Compatibility
 
 - **x86_64 macOS 15.8.1, build 24H32 / Darwin 24.6.x**, or **macOS 26.7.2, build 25G332 / Darwin 25.6.x**. The generator selects the matching layout and checks the exact native `bluetoothd` CodeDirectory and original signed pages. Other binaries are rejected.
-- **Bluetooth USB ID `0bda:0852`.** Check System Information → USB. The RTL8852CE
-  Wi-Fi chip name alone does not establish compatibility.
+- **Bluetooth USB ID `0bda:0852`** on either supported build, or **`0cb8:c559` on
+  Tahoe 25G332 only**. Check System Information → USB. The Wi-Fi chip name alone
+  does not establish compatibility.
 - Existing OpenCore setup with **Lilu 1.7.2**, **BlueToolFixup 2.7.2** and
-  **RealtekBluetoothFirmware 1.0.2**. The firmware loader needs the `0bda:0852`
+  **RealtekBluetoothFirmware 1.0.2**. The firmware loader needs the selected USB
   device match; the installer adds it if missing.
 
 Boot, passkey pairing, typing and reconnection have been tested with an MX Keys S.
 Other computers, sleep/wake and audio devices remain untested. Full-SIP
 compatibility is unverified; the installer does not change security settings.
 This fixes Bluetooth only; it does not add Wi-Fi, AirDrop or AWDL support.
+The RTL8852B test results and its different patch are documented in
+[RTL8852B notes](docs/RTL8852B.md).
 
 ## Install
 
@@ -38,7 +42,7 @@ fetches pinned build dependencies, runs the build/tests, and then:
 - Backs up the selected config, firmware-loader plist and any existing companion
   kext in a timestamped `RealtekBluetoothCompat-backup-*` folder beside the config.
 - Copies the built companion into that EFI's `OC/Kexts` folder.
-- Adds the firmware loader's missing `0bda:0852` personality.
+- Adds the firmware loader's missing personality for the detected controller.
 - Adds or updates one enabled companion entry after its dependencies in
   `Kernel → Add`, with the supported architecture and kernel limits.
 - Checks plist syntax and runs `OC/Tools/ocvalidate` if available. Failed
@@ -60,6 +64,15 @@ containing them are generated locally, rather than included in downloads.
 ./build.sh
 ```
 
+The default build retains the `0bda:0852` profile. For `0cb8:c559` on Tahoe:
+
+```sh
+./build.sh --device rtl8852b
+```
+
+The installer detects the USB ID and builds that profile. Manual builds can
+also pass `--binary /path/to/local/bluetoothd`; the exact build guards still apply.
+
 Copy `build/RealtekBluetoothCompat.kext` to `OC/Kexts`. Add it after Lilu,
 BlueToolFixup and RealtekBluetoothFirmware in `Kernel → Add`:
 
@@ -73,7 +86,8 @@ BlueToolFixup and RealtekBluetoothFirmware in `Kernel → Add`:
 | MinKernel | `24.6.0` (Sequoia) or `25.6.0` (Tahoe) |
 | MaxKernel | `24.6.99` (Sequoia) or `25.6.99` (Tahoe) |
 
-Ensure the loader has the [required firmware match](docs/FIRMWARE_MATCH.md).
+RTL8852B uses the Tahoe kernel range only. Ensure the loader has the
+[required firmware match](docs/FIRMWARE_MATCH.md).
 Validate your config before rebooting. Do not bypass the binary guards to force
 an unsupported macOS build to work.
 

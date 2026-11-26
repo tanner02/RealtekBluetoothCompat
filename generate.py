@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Generate build-pinned, ASLR-independent bluetoothd memory patches."""
 import hashlib,json,pathlib,struct,subprocess,re,argparse
+from devices import DEVICES
 root=pathlib.Path(__file__).resolve().parent
 (root/'generated').mkdir(exist_ok=True)
 parser=argparse.ArgumentParser()
 parser.add_argument('--binary',default='/usr/sbin/bluetoothd',help='Matching local Apple binary (never uploaded)')
+parser.add_argument('--device',choices=DEVICES,default='rtl8852ce',help='USB controller profile (default: rtl8852ce / 0bda:0852)')
 args=parser.parse_args()
+device=DEVICES[args.device]
 binary=bytearray(pathlib.Path(args.binary).read_bytes())
 
 observed_sha256=hashlib.sha256(binary).hexdigest()
@@ -30,6 +33,8 @@ elif header_end == 0x26c8:
  text_size=0xaa3000; section_end=0xaa2b98; text_start=0x27f0
 else:
  raise AssertionError('Unsupported bluetoothd layout')
+assert kernel in device['kernels'], 'RTL8852B 0cb8:c559 requires Tahoe 25G332'
+uses_dispatcher=args.device=='rtl8852ce'
 trampoline=cave+0xd0; random_address=cave+0xf0
 original=bytes.fromhex('554889e5415741564154534881ec20010000')
 hook=(root/'dispatcher-hook-template.bin').read_bytes()
@@ -52,12 +57,18 @@ def make_payload(cave):
  assert len(payload)==246
  return bytes(payload)
 payload=make_payload(cave)
-patches=[('payload',cave,bytes(payload)),('optional-page2',optional,b'\xff'),('dispatcher',entry,relative(b'\xe9',entry,cave)+b'\x90'*13),('baseline-phy',phy,b'\xeb')]
+if uses_dispatcher:
+ patches=[('payload',cave,bytes(payload)),('optional-page2',optional,b'\xff'),('dispatcher',entry,relative(b'\xe9',entry,cave)+b'\x90'*13),('baseline-phy',phy,b'\xeb')]
+ original_ranges=[bytes(len(payload)),b'\x0c',original,b'\x74']
+else:
+ # Enter the native Ready handler instead of waiting for an optional update.
+ # Keep this controller's dispatcher and original PHY branch intact.
+ patches=[('baseline-ready',0x216694,b'\xeb')]
+ original_ranges=[b'\x74']
 # An active code-validation plugin can leave its exact patches in the UBC cache.
-# Normalize only our four known ranges in this temporary buffer, then require the
+# Normalize only the selected profile's known ranges in this temporary buffer, then require the
 # original signed-page hashes bound to the exact CodeDirectory. Never write
 # to the executable or accept unknown code/signature data.
-original_ranges=[bytes(len(payload)),b'\x0c',original,b'\x74']
 normalized=0
 legacy_cave=0x2440
 if profile=='sequoia':
@@ -132,6 +143,7 @@ if normalized:print('Normalized %d known cache patches in a temporary buffer; ex
 cdhash=bytes.fromhex(expected_cdhash)
 lines=['// Generated only from the exact supported local binary. Do not edit.','#pragma once']
 lines.extend(['static const int supportedKernel = %d;'%kernel, 'static const char supportedCDHashString[] = \"%s\";'%expected_cdhash, 'static const size_t supportedTextSize = 0x%x;'%text_size, 'static const size_t supportedCave = 0x%x;'%cave, 'static const size_t supportedEntry = 0x%x;'%entry])
+lines.extend(['static const unsigned supportedVendorID = 0x%04x;'%device['vendor'], 'static const unsigned supportedProductID = 0x%04x;'%device['product'], 'static const bool usesDispatcherPatch = %s;'%('true' if uses_dispatcher else 'false')])
 def arr(name,value,mutable=False):
  lines.append(('static unsigned char ' if mutable else 'static const unsigned char ')+name+'[] = {')
  lines.extend('    '+','.join('0x%02x'%b for b in value[i:i+24])+',' for i in range(0,len(value),24))
@@ -146,7 +158,14 @@ for i,(name,addr,replacement) in enumerate(patches):
  lines.append('    {0x%x, 0x%x, %d, originalPage%d, replacement%d, "%s"},'%(off+(addr&~4095),addr&4095,len(replacement),i,i,name))
 lines.append('};')
 (root/'generated/Patches.hpp').write_text('\n'.join(lines)+'\n')
-(root/'generated/payload.bin').write_bytes(payload)
+if uses_dispatcher:
+ (root/'generated/payload.bin').write_bytes(payload)
+else:
+ (root/'generated/payload.bin').unlink(missing_ok=True)
 manifest={'profile':profile,'kernel':kernel,'text_size':text_size,'observed_file_sha256':observed_sha256,'cdhash':cdhash.hex(),'slice_offset':off,'load_commands_end':header_end,'text_start':text_start,'payload_location':'file-backed RX __TEXT tail padding','cave':cave,'trampoline':trampoline,'random_address':random_address,'entry':entry,'patches':[{'name':n,'offset':a,'original':p[a:a+len(r)].hex(),'replacement':r.hex()} for n,a,r in patches]}
+manifest.update(device=args.device,usb_vendor=device['vendor'],usb_product=device['product'])
+if not uses_dispatcher:
+ for key in ('payload_location','trampoline','random_address'):
+  del manifest[key]
 (root/'generated/manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-print('Generated four build-pinned page patches locally; generated/ must not be committed.')
+print('Generated %d build-pinned page patch(es) for %s locally; generated/ must not be committed.'%(len(patches),args.device))

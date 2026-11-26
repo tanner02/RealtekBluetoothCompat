@@ -76,3 +76,12 @@ or the companion's observer alone does not establish successful firmware upload.
 This repository supplies the match data and instructions, not a modified
 firmware-loader binary or a complete EFI. Updating/replacing the firmware loader
 can overwrite a local plist addition, so recheck its match after an update.
+
+## USB 0cb8:c559 (RTL8852B)
+
+Use [RealtekBluetoothFirmware-0cb8-c559.plist](../examples/RealtekBluetoothFirmware-0cb8-c559.plist)
+for this controller instead of the `0bda:0852` fragment. It is also a dictionary
+addition to the existing firmware-loader plist. The installer adds the selected
+match without replacing other personalities. Build the companion with
+`./build.sh --device rtl8852b`; this profile supports Tahoe 25G332 only.
+See [RTL8852B notes](RTL8852B.md) for the patch and hardware results.

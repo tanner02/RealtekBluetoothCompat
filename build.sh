@@ -11,8 +11,8 @@ lilu='Dependencies/Lilu/Lilu'
 }
 mkdir -p build
 xcrun python3 scripts/check-hook.py
-xcrun python3 generate.py
-xcrun python3 tests/generator.py
+xcrun python3 generate.py "$@"
+xcrun python3 tests/generator.py "$@"
 xcrun clang++ -arch x86_64 -std=c++14 -Wall -Wextra -Werror tests/host.cpp -o build/host-test
 ./build/host-test
 # UndefinedBehaviorSanitizer remains mandatory. ASan can be explicitly skipped
@@ -34,6 +34,16 @@ xcrun clang++ -arch x86_64 -isysroot "$sdk" -nostdlib -fapple-kext -Wl,-kext -L"
 bundle='build/RealtekBluetoothCompat.kext'
 mkdir -p "$bundle/Contents/MacOS"
 cp Info.plist "$bundle/Contents/Info.plist"
+xcrun python3 - "$bundle/Contents/Info.plist" <<'PY'
+import json, pathlib, plistlib, sys
+path = pathlib.Path(sys.argv[1])
+info = plistlib.loads(path.read_bytes())
+device = json.loads(pathlib.Path('generated/manifest.json').read_text())
+observer = info['IOKitPersonalities']['RealtekBluetoothCompatObserver']
+observer['idVendor'] = device['usb_vendor']
+observer['idProduct'] = device['usb_product']
+path.write_bytes(plistlib.dumps(info, sort_keys=False))
+PY
 cp build/RealtekBluetoothCompat "$bundle/Contents/MacOS/RealtekBluetoothCompat"
 plutil -lint "$bundle/Contents/Info.plist"
 xcrun python3 scripts/verify-kmod.py
